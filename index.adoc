@@ -1,0 +1,1177 @@
+////
+NO CAMBIAR!!
+Codificación, idioma, tabla de contenidos, tipo de documento
+////
+:encoding: utf-8
+:lang: es
+:toc: right
+:toc-title: Tabla de contenidos
+:doctype: book
+:imagesdir: ./images
+:linkattrs:
+
+////
+Nombre y título del trabajo
+////
+# DDD - Diseño dirigido por el dominio
+Servicio de las Tecnologías de la Información y las Comunicaciones - Universidad de Almería
+
+image::logocloudstic.png[]
+
+// NO CAMBIAR!! (Entrar en modo no numerado de apartados)
+:numbered!: 
+
+
+[abstract]
+== Resumen
+////
+COLOCA A CONTINUACION EL RESUMEN
+////
+AAA
+
+////
+COLOCA A CONTINUACION LOS OBJETIVOS
+////
+.Objetivos
+* xxx
+
+[TIP]
+====
+Disponible el https://github.com/ualmtorres/enrollments.git[repositorio] usado en este tutorial.
+====
+
+// Entrar en modo numerado de apartados
+:numbered:
+
+## Introducción
+
+### Configuración inicial
+
+[source, bash]
+----
+$ nest new enrollments
+
+$ npm install --save @nestjs/typeorm typeorm mysql
+$ npm install --save @nestjs/swagger swagger-ui-express
+----
+
+Archivo `docker-compose.yml` con MySQL y Adminer
+
+++++
+<script src="https://gist.github.com/ualmtorres/4af6f43e58fca549b6c80223bfe1e691.js"></script>
+++++
+
+Script de inicialización de la base de datos
+
+++++
+<script src="https://gist.github.com/ualmtorres/dd1688d817f74c1911fce54424535633.js"></script>
+++++
+
+### Ejemplo a desarrollar
+
+CASO DE USO 1: Crear un curso
+
+* se introduce el nombre de un curso de entre 3 y 255 caracteres
+* se introduce un número máximo de plazas (no puede ser mayor de 8 ni menor que uno)
+
+CASO DE USO 2: Listar cursos
+
+* mostrar los cursos disponibles en la plataforma
+* filtrar cursos por nombre
+
+CASO DE USO 3: Registar un alumno
+
+* se introduce un nombre, entre 2 y 255 caracteres
+* se introduce un NIF (8 dígitos y una letra, no hay que validar el checksum)
+* se introduce un email válido
+
+CASO DE USO 4: Listar los alumnos
+
+* mostrar los alumnos actuales de la plataforma
+
+CASO DE USO 5: Matricular un alumno en un curso
+
+* se introduce un id de alumno y un id de curso
+* comprobar que no se pueda superar el número máximo de matriculas permitidas
+* no se puede matricular el mismo alumno dos veces
+
+.Archivo `main.ts` para incluir Swagger
+[source, typescript]
+----
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // Configurar títulos de documnentación
+  const options = new DocumentBuilder() 
+    .setTitle('Enrollments REST API')
+    .setDescription('Enrollments REST API')
+    .setVersion('1.0')
+    .build();
+  const document = SwaggerModule.createDocument(app, options); 
+
+  // La ruta en que se sirve la documentación
+  SwaggerModule.setup('docs', app, document); 
+
+  await app.listen(3000);
+}
+bootstrap();
+----
+
+### Crear curso
+
+.Archivo `app.controller.ts`
+[source, typescript]
+----
+import { BadRequestException, Body, Controller, Get, Post } from '@nestjs/common';
+import { createConnection } from 'typeorm';
+import { AppService } from './app.service';
+import { ApiProperty, ApiTags } from '@nestjs/swagger';
+
+class CreateCourseRequest { <1>
+  @ApiProperty({ example: 'Nuevo curso' })
+  name: string;
+  @ApiProperty({ example: 5 })
+  places: number;
+}
+
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService) {}
+
+  @Get()
+  getHello(): string {
+    return this.appService.getHello();
+  }
+
+  @Post('/courses') <2>
+  @ApiTags('courses')
+  async createCourse(@Body() req: CreateCourseRequest): Promise<object> {
+    if (req.places === undefined || req.places < 1 || req.places > 8) {
+      throw new BadRequestException(
+        'El número de plazas de un curso deber estar entre 1 y 8'
+      );
+    }
+    if (
+      req.name === undefined ||
+      req.name.length < 3 ||
+      req.name.length > 255
+    ) {
+      throw new BadRequestException(
+        'El nombre de un curso debe estar entre 3 y 255 caracteres',
+      );
+    }
+    const connection = await this.getConnection();
+
+    const result = await connection.query(
+      'INSERT INTO courses(name, places) VALUES(?, ?)',
+      [req.name, req.places],
+    );
+
+    connection.close();
+
+    return { courseId: result.insertId };
+  }
+
+  getConnection() { <3>
+    return createConnection({
+      type: 'mysql',
+      host: 'localhost',
+      port: 3306,
+      username: 'root',
+      password: 'example',
+      database: 'enrollments',
+    });
+  }
+}
+----
+
+[NOTE]
+====
+* Se ha favorecido el uso de claúsulas de guarda.
+* Se ha usado RAW SQL en el método `query` en lugar de usar los métodos proporcionados por TypeORM.
+* Uso de https://docs.nestjs.com/exception-filters#built-in-http-exceptions[excepciones HTTP incorporadas].
+* Uso de expresiones regulares en NIF y email.
+====
+
+### Listar cursos
+
+.Modificaciones al archivo `app.controller.ts`.
+[source, typescript]
+----
+...
+  @Get('/courses')
+  @ApiTags('courses')
+  @ApiQuery({ name: 'name', required: false })
+  async getCourses(@Query('name') name: string): Promise<object> {
+    const connection = await this.getConnection();
+
+    let query = 'SELECT * FROM courses';
+    let params = [];
+
+    if (name !== undefined) {
+      query += ' WHERE name = ?';
+      params.push(name);
+    }
+
+    const result = await connection.query(query, params);
+
+    connection.close();
+
+    return result;
+  }
+...
+----
+
+### Registrar a un alumno
+.Modificaciones al archivo `app.controller.ts`
+[source, typescript]
+----
+...
+class CreateStudentRequest { <1>
+  @ApiProperty({ example: 'Manolo' })
+  name: string;
+  @ApiProperty({ example: '12345678Q' })
+  nif: string;
+  @ApiProperty({ example: 'mtorres@ual.es' })
+  email: string;
+}
+...
+  @Post('/students') <2>
+  @ApiTags('students')
+  async createStudent(@Body() req: CreateStudentRequest): Promise<object> {
+    if (req.name == undefined || req.name.length < 2 || req.name.length > 255) {
+      throw new BadRequestException(
+        'El nombre del estudiante tiene que tener entre 2 y 255 caracteress',
+      );
+    }
+    if (req.nif == undefined || !/^[0-9]{8}[A-Z]$/g.test(req.nif)) {
+      throw new BadRequestException('El NIF tiene que tener formato correcto');
+    }
+    if (
+      req.email == undefined ||
+      !/^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/g.test(
+        req.email,
+      )
+    ) {
+      throw new BadRequestException(
+        'El email tiene que tener formato correcto',
+      );
+    }
+
+    const connection = await this.getConnection();
+
+    const result = await connection.query(
+      'INSERT INTO students(name, nif, email) VALUES(?, ?, ?)',
+      [req.name, req.nif, req.email],
+    );
+
+    connection.close();
+
+    return {'id: ': result.insertId };
+  }
+...
+----
+
+### Listar alumnos
+.Modificaciones al archivo `app.controller.ts`
+[source, typescript]
+----
+...
+  @Get('/students')
+  @ApiTags('students')
+  async getStudents(): Promise<object> {
+    // connect DB
+    const connection = await this.getConnection();
+
+    const query = 'SELECT * FROM students ';
+
+    const result = await connection.query(query);
+
+    connection.close();
+
+    return { data: result };
+  }
+...
+----
+
+### Matricular a un alumno en un curso
+.Modificaciones al archivo `app.controller.ts`
+[source, typescript]
+----
+...
+class EnrollStudentRequest { <1>
+  @ApiProperty({ example: 1 })
+  studentId: number;
+}
+...
+  @Post('/courses/:courseId/enrollments') <2>
+  @ApiTags('courses')
+  async enrollStudent(
+    @Body() req: EnrollStudentRequest,
+    @Param('courseId') courseId: string,
+  ): Promise<object> {
+    // connect DB
+    const connection = await this.getConnection();
+
+    const courses = await connection.query(
+      'SELECT * FROM courses WHERE id = ?',
+      [courseId],
+    );
+    if (courses.length === 0) {
+      connection.close();
+      throw new BadRequestException('Curso no encontrado');
+    }
+    const course = courses[0];
+
+    const students = await connection.query(
+      'SELECT * FROM students WHERE id = ?',
+      [req.studentId],
+    );
+    if (students.length === 0) {
+      connection.close();
+      throw new BadRequestException('Estudiante no encontrado');
+    }
+
+    const courseEnrollemnts = await connection.query(
+      'SELECT * FROM enrollments WHERE id_course = ?',
+      [courseId],
+    );
+    if (courseEnrollemnts.length === course.places) {
+      connection.close();
+      throw new BadRequestException('El curso está lleno');
+    }
+    courseEnrollemnts.forEach(enrollment => {
+      if (enrollment.id_student === req.studentId)
+        throw new BadRequestException('El estudiante ya está matriculado');
+    });
+
+    const result = await connection.query(
+      'INSERT INTO enrollments(id_course, id_student) VALUES(?, ?)',
+      [courseId, req.studentId],
+    );
+
+    connection.close();
+    return { enrollmentId: result.insertId };
+  }
+...
+----
+
+### Estructura de archivos objetivo
+
+[tree]
+--
+#src
+##Application
+###CreateCourseUseCase.ts
+##Domain
+###Course.ts
+###CourseRepository.ts
+###InvalidArgumentException
+##Infrastructure
+###MySQLCourseRepository.ts
+--
+
+### Creación del caso de uso
+
+El objetivo es llevar toda la lógica que teníamos en el método de creación de un curso nuevo definido en `app.controller.ts` a un nuevo archivo `Application/CreateCourseUseCase.ts`.
+
+[NOTE]
+====
+Cada caso de uso sólo debe tener un único método público. Se suele llamar `execute()`.
+====
+
+. Crear el archivo `Application/CreateCourseUseCase.ts` con una clase `CreateCourseUseCase.ts`.
+. Definir un método público `execute()`.
+. Colocar en el método `execute()` toda la lógica que había en el cuerpo del método de creación de un nuevo curso definida en `app.controller.ts`.
+. Hacer la modificaciones pertinentes en `execute`
+    . Definir un argumento `req` en `execute()`.
+    . Definir el método `execute` como `async`.
+    . Importar las excepciones HTTP.
+    . Copiar el método `getConnection()` de conexión a la base de datos.
+    . Importar la referencia a TypeORM.
+
++
+[source, typescript]
+----
+import { BadRequestException } from '@nestjs/common';
+import { createConnection } from 'typeorm';
+export class CreateCourseUseCase { <1>
+    getConnection() { <2>
+        return createConnection({
+          type: 'mysql',
+          host: 'localhost',
+          port: 3306,
+          username: 'root',
+          password: 'secret',
+          database: 'ual',
+        });
+      }
+
+    public async execute (req) { <3>
+        if (req.places === undefined || req.places < 1 || req.places > 8) {
+            throw new BadRequestException(
+              'El número de plazas de un curso deber estar entre 1 y 8'
+            );
+          }
+          if (
+            req.name === undefined ||
+            req.name.length < 3 ||
+            req.name.length > 255
+          ) {
+            throw new BadRequestException(
+              'El nombre de un curso debe estar entre 3 y 255 caracteres',
+            );
+          }
+          const connection = await this.getConnection();
+      
+          const result = await connection.query(
+            'INSERT INTO courses(name, places) VALUES(?, ?)',
+            [req.name, req.places],
+          );
+      
+          connection.close();
+      
+          return { courseId: result.insertId };
+    }
+}
+----
+
+. Llamar desde el método de creación de cursos de `app.controller.ts` al método `execute` del nuevo caso de uso
+
++
+[source, typescript]
+----
+  @Post('/courses')
+  @ApiTags('courses')
+  async createCourse(@Body() req: CreateCourseRequest): Promise<object> {
+    const useCase = new CreateCourseUseCase(); <1>
+    const result = useCase.execute(req); <2>
+    return result; <3>
+  }
+----
+
+Si probamos a crear un curso, todo sigue funcionando correctamente.
+
+### Usar el lenguaje ubícuo dentro del caso de uso
+
+. Cambiar el argumento `req` en el método `execute` por dos parámetros `name` y `places`.
+
++
+[source, typescript]
+----
+    public async execute (name: string, places: number) { <1>
+        if (places === undefined || places < 1 || places > 8) {
+            throw new BadRequestException(
+              'El número de plazas de un curso deber estar entre 1 y 8'
+            );
+          }
+          if (
+            name === undefined ||
+            name.length < 3 ||
+            name.length > 255
+          ) {
+            throw new BadRequestException(
+              'El nombre de un curso debe estar entre 3 y 255 caracteres',
+            );
+          }
+          const connection = await this.getConnection();
+      
+          const result = await connection.query(
+            'INSERT INTO courses(name, places) VALUES(?, ?)',
+            [name, places],
+          );
+      
+          connection.close();
+      
+          return { courseId: result.insertId };
+    }
+----
+
+. Actualizar la llamada al método `execute` desde `app.controller.ts`.
+
++
+[source, typescript]
+----
+  @Post('/courses')
+  @ApiTags('courses')
+  async createCourse(@Body() req: CreateCourseRequest): Promise<object> {
+    const useCase = new CreateCourseUseCase();
+    const result = await useCase.execute(req.name, req.places); <1>
+    return result;
+  }
+----
+
+### Eliminar las referencias HTTP del caso de uso
+
+. Crear una clase `Domain/InvalidArgumentException.ts` para que sea una excepción del dominio, no de HTTP.
+
++
+[source, typescript]
+----
+export class InvalidArgumentException extends Error {}
+----
+
+. Sustituir la excepción HTTP (`BadRequestException`) por la excepción del dominio (`InvalidArgumentException`).
+
++
+[source, typescript]
+----
+...
+    public async execute (name: string, places: number) {
+        if (places === undefined || places < 1 || places > 8) {
+            throw new InvalidArgumentException ( <1>
+              'El número de plazas de un curso deber estar entre 1 y 8'
+            );
+          }
+          if (
+            name === undefined ||
+            name.length < 3 ||
+            name.length > 255
+          ) {
+            throw new InvalidArgumentException ( <2>
+              'El nombre de un curso debe estar entre 3 y 255 caracteres',
+            );
+          }
+          const connection = await this.getConnection();
+      
+          const result = await connection.query(
+            'INSERT INTO courses(name, places) VALUES(?, ?)',
+            [name, places],
+          );
+      
+          connection.close();
+      
+          return { courseId: result.insertId };
+    }
+...
+----
+
+. Actualizar la llamada al caso de uso para que transforme el error de dominio en error HTTP.
+
++
+[source, typescript]
+----
+...
+  @Post('/courses')
+  @ApiTags('courses')
+  async createCourse(@Body() req: CreateCourseRequest): Promise<object> {
+    const useCase = new CreateCourseUseCase();
+    try { <1>
+      const result = await useCase.execute(req.name, req.places); <2>
+      return result;
+    } catch (error) {
+      throw new BadRequestException(error.message); <3>
+    }
+  }
+...
+----
+<1> zzz
+<2> La llamada tiene que ser con `await` porque el caso de uso es asíncrono.
+<3> zzz
+
+### Eliminar las referencias a persistencia en el caso de uso
+
+. Crear entidad del dominio en `Domain/Course.ts`.
+
++
+[source, typescript]
+----
+export class Course {
+    private id: number;
+    private name: string;
+    private places: number;
+
+    constructor (name: string, places: number) {
+        this.name = name;
+        this.places = places;
+    }
+
+    public getName() { <1>
+        return this.name
+    }
+
+    public getPlaces() { 
+        return this.places;
+    }
+}
+----
+<1> Los _getters_ son necesarios posteriormente para el acceso a las propiedades de la entidad por parte de los repositorios que manejen la persistencia.
+
+. Crear el repositorio de persistencia de la entidad para poder conectar el caso de uso a la persistencia.
+
++
+[source, typescript]
+----
+import { Course } from './Course';
+
+export abstract class CourseRepository {
+    abstract save(course: Course);
+    // Aquí irían otros métodos p.e courseByStudent
+}
+----
+
+. Mover la lógica de base de datos desde `app.controller.ts` a un repositorio en infraestructura `Infrastructure/MySQLCourseRepository.ts`. Se mueve a infraestructura porque es propio del mecanismo de persisntecia concreto, en este caso MySQL.
+
++
+.Archivo `Infrasctructure/MySQLCourseRepository.ts`
+[source, typescript]
+----
+import { CourseRepository } from '../Domain/CourseRepository';
+import { Course } from '../Domain/Course';
+import { createConnection } from 'typeorm';
+
+export class MySQLCourseRepository extends CourseRepository {
+
+    async save(course: Course) {
+        const connection = await this.getConnection();
+
+        const result = await connection.query(
+          'INSERT INTO courses(name, places) VALUES(?, ?)',
+          [course.getName(), course.getPlaces()], <1>
+        );
+
+        connection.close();
+
+        return result;
+    }
+    getConnection() {
+        return createConnection({
+          type: 'mysql',
+          host: 'localhost',
+          port: 3306,
+          username: 'root',
+          password: 'secret',
+          database: 'ual',
+        });
+      }
+}
+----
+<1> Uso de los _getters_ para el acceso a las propiedades de la entidad a persistir.
+
+. Limpiar el caso de uso para sustituir la interacción con la base de datos por interacción con el repositorio. 
+
++
+.Archivo `Application/CreateCourseUseCase.ts`
+[source, typescript]
+----
+import { createConnection } from 'typeorm';
+import { InvalidArgumentException } from '../Domain/InvalidArgumentException';
+import { CourseRepository } from '../Domain/CourseRepository';
+import { Course } from '../Domain/Course';
+export class CreateCourseUseCase {
+
+    constructor(private courses: CourseRepository) {} <1>
+
+    public async execute (name: string, places: number) {
+        if (places === undefined || places < 1 || places > 8) {
+            throw new InvalidArgumentException (
+              'El número de plazas de un curso deber estar entre 1 y 8'
+            );
+          }
+          if (
+            name === undefined ||
+            name.length < 3 ||
+            name.length > 255
+          ) {
+            throw new InvalidArgumentException (
+              'El nombre de un curso debe estar entre 3 y 255 caracteres'
+            );
+          }
+
+          const course = new Course(name, places); <2>
+          const result = await this.courses.save(course); <3>
+      
+          return { courseId: result.insertId };
+    }
+}
+----
+
+. Modificar la llamada al caso de uso en `app.controller.ts` para pasarle el repositorio de persistencia.
+
++
+[source, typescript]
+----
+...
+  @Post('/courses')
+  @ApiTags('courses')
+  async createCourse(@Body() req: CreateCourseRequest): Promise<object> {
+    const useCase = new CreateCourseUseCase(new MySQLCourseRepository()); <1>
+    try {
+      const result = await useCase.execute(req.name, req.places); 
+      return result;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+...
+----
+
+### Empujar la lógica de negocio desde el caso de uso al dominio
+
+Se trata de llevar la verificación del número de caracteres de un curso y su número de plazas desde `Application/CreateCourseUseCase.ts` a `Domain/Course.ts`. El objetivo es que otros casos de uso se puedan beneficiar de esa lógica si está en la entidad y así no tener que volver a implementarla. Concretamente, la llevaríamos al constructor.
+
+. Colocar la lógica de comprobación de curso correcto de la entidad `Domain/Course.ts`. En este caso lo colocamos en el constructor.
+
++
+[source, typescript]
+----
+    constructor (name: string, places: number) {
+        this.name = name;
+        this.places = places;
+
+        if (places === undefined || places < 1 || places > 8) { <1>
+            throw new InvalidArgumentException (
+              'El número de plazas de un curso deber estar entre 1 y 8'
+            );
+          }
+          if ( <2>
+            name === undefined ||
+            name.length < 3 ||
+            name.length > 255
+          ) {
+            throw new InvalidArgumentException (
+              'El nombre de un curso debe estar entre 3 y 255 caracteres'
+            );
+          }
+    }
+----
+<1> Lógica de comprobación del nombre de un curso
+<2> Lógica de comprobación de plazas de un curso
+
+. Quitar la lógica de comprobación de curso correcto del caso de uso `Application/CreateCourseUseCase.ts`. Ahora el caso de uso queda totalmente limpio. Se limita a crear el curso, guardarlo y devolver el identificador del curso creado.
+
++
+[source, typescript]
+----
+import { createConnection } from 'typeorm';
+import { InvalidArgumentException } from '../Domain/InvalidArgumentException';
+import { CourseRepository } from '../Domain/CourseRepository';
+import { Course } from '../Domain/Course';
+export class CreateCourseUseCase {
+
+    constructor(private courses: CourseRepository) { }
+
+    public async execute (name: string, places: number) {
+
+          const course = new Course(name, places);
+          const result = await this.courses.save(course);
+
+          return { courseId: result.insertId };
+    }
+}
+----
+
+### Generación de identificadores
+
+. Extender `Domain/CourseRepository.ts` con un nuevo método abstracto para la generación de identificadores.
+
++
+[source, typescript]
+----
+import { Course } from './Course';
+
+export abstract class CourseRepository {
+    abstract save(course: Course);
+    // Aquí irían otros métodos p.e courseByStudent
+
+    abstract nextIdentity(): number;
+}
+----
+
+. Modificar la entidad `Domain/Course.ts` añadiéndole el `id` al constructor y creando un método `getId()` que devuelve el `id`.
+
++
+[source, typescript]
+----
+...
+export class Course {
+    private id: number;
+    private name: string;
+    private places: number;
+
+    constructor (id: number, name: string, places: number) { <1>
+        this.id = id; <2>
+        this.name = name;
+        this.places = places;
+
+...
+
+    public getId() { <3>
+      return this.id;
+    }
+
+...
+----
+<1> Modificación del constructor para añadirle el `id` como parámetro
+<2> Asignación del `id`.
+<3> Getter necesario para cuando se haga se vaya a persistir.
+
+. Modificar el caso de uso para obtener el `id` del repositorio y pasarlo en la creación del curso.
++
+[source, typescript]
+----
+import { createConnection } from 'typeorm';
+import { InvalidArgumentException } from '../Domain/InvalidArgumentException';
+import { CourseRepository } from '../Domain/CourseRepository';
+import { Course } from '../Domain/Course';
+export class CreateCourseUseCase {
+
+    constructor(private courses: CourseRepository) { }
+
+    public async execute (name: string, places: number) {
+
+          const courseId = await this.courses.nextIdentity(); <1>
+          const course = new Course(courseId, name, places); <2>
+          const result = await this.courses.save(course);
+
+          return { courseId: result.insertId };
+    }
+}
+----
+<1> Solicitar la creación de un identificador para el curso.
+<2> Crear el curso usando el identificador obtenido.
+
+. Modificar el repositorio MySQL para implementar el método `nextIdentity()` y para modificar el `INSERT` y que ahora se le pase el `id`.
+
+[IMPORTANT]
+====
+Haremos una generación de identificadores muy sencilla y sólo con propósitos ilustrativos, generando como `id` el tiempo Unix en segundos, lo que a todas vistas no es válido porque generaría el mismo `id` para peticiones que llegasen en el mismo segundo.
+
+Un enfoque basado en secuencias (p.e. Oracle, PostgreSQL) o en https://en.wikipedia.org/wiki/Universally_unique_identifier[UUID] sería mucho más apropiado. Pero para no andar cambiando en este ejemplo el esquema de la base de datos y la entidad para que ahora admitan cadenas UUID en lugar de números lo dejaremos así.
+====
++
+[source, typescript]
+----
+import { CourseRepository } from '../Domain/CourseRepository';
+import { Course } from '../Domain/Course';
+import { createConnection } from 'typeorm';
+
+export class MySQLCourseRepository extends CourseRepository {
+
+    nextIdentity(): number { <1>
+      return Math.floor(Date.now() / 1000);
+    }
+
+    async save(course: Course) {
+        const connection = await this.getConnection(); 
+
+        const result = await connection.query( <2>
+          'INSERT INTO courses(id, name, places) VALUES(?, ?, ?)',
+          [course.getId(), course.getName(), course.getPlaces()],
+        );
+
+        connection.close();
+
+        return result;
+    }
+    getConnection() {
+        return createConnection({
+          type: 'mysql',
+          host: 'localhost',
+          port: 3306,
+          username: 'root',
+          password: 'secret',
+          database: 'ual',
+        });
+      }
+}
+----
+<1> Implementación de la generación del identificador. Sólo con propósitos ilustrativos.
+<2> Paso del `id` en el `INSERT`.
+
+### Mejora de la implementación del repositorio MySQL
+
+Con lo que tenemos hasta ahora, se crea una conexión en cada uso y es que el repositorio no se comparte entre peticiones. Se trata de un problema relacionado con la gestión del ciclo de vida de las conexiones y del repositorio y esto se resuelve con un _contenedor de inyección de dependencias_. 
+
+. Comenzamos por sustituir la creación del caso de uso en el controlador `app.controller.ts` por una inyección de dependencias. 
+
++
+[source, typescript]
+----
+...
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService, 
+    private useCase: CreateCourseUseCase) {} <1>
+
+  @Post('/courses')
+  @ApiTags('courses')
+  async createCourse(@Body() req: CreateCourseRequest): Promise<object> {
+    try {
+      const result = await this.useCase.execute(req.name, req.places); <2>
+      return result;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+...
+----
+<1> Inyección del caso de uso en el constructor.
+<2> Llamada al caso de uso como una variable miembro.
+
++
+[NOTE]
+====
+Al haber inyectado el caso de uso se ha _perdido_ el uso del repositorio MySQL. Antes de la inyección, el código que teníamos era el siguiente
+
+`const useCase = new CreateCourseUseCase(new MySQLCourseRepository());`
+
+Queda entonces pendiente inyectar el `MySQLCourseRepository` al caso de uso. Esto pasa por convertir al caso de uso en un _provider_. En los pasos siguientes se indica la solución a este problema.
+====
+
+. Convertir al caso de uso `Application/CreateCourseUeCase.ts` en un _provider_ añadiéndole el decorador `Injectable()`.
+
++
+[source, typescript]
+----
+@Injectable() <1>
+export class CreateCourseUseCase {
+
+    constructor(private courses: CourseRepository) { }
+
+    public async execute (name: string, places: number) {
+
+          const courseId = await this.courses.nextIdentity();
+          const course = new Course(courseId, name, places);
+          const result = await this.courses.save(course);
+
+          return { courseId: result.insertId };
+    }
+}
+----
+<1> Uso del decorador `Injectable()`
+
+. Modificación de `app.module.ts` para incorporar al caso de uso `CreateCourseUseCase` como _provider_. Se trata de una modificación doble. Por un lado hay que inyectar el provider. Por otro lado hay que inyectar la clase concreta con la que se inicializa el provider.
+
++
+[source, typescript]
+----
+@Module({
+  imports: [],
+  controllers: [AppController],
+  providers: [AppService, 
+    CreateCourseUseCase, <1>
+    {provide: CourseRepository, useClass: MySQLCourseRepository}], <2>
+})
+export class AppModule {}
+----
+<1> `CreateCourseUseCase como `provider`.
+<2> `Inicialización del parámetro `CourseRepository` del constructor de `CreateCourseUseCase` con la clase `MySQLCourseRepository`
+
++
+[NOTE]
+====
+El caso de uso `CourseRepositoryUseCase` se inicializaba con un parámetro `courses` de tipo `CourseRepository`
+
+[source, typescript]
+----
+@Injectable()
+export class CreateCourseUseCase {
+
+    constructor(private courses: CourseRepository) { } <1>
+----
+<1> `CourseRepository` como tipo del parámetro del constructor del caso de uso
+====
+
++
+.Inicialización de un _provider_
+****
+Partimos de que queremos pasar del uso directo de un caso de uso inicializado con una clase a su uso como en forma de inyección de dependencias. Esta era la situación inicial:
+
+[source, typescript]
+----
+...
+const useCase = new CreateCourseUseCase(new MySQLCourseRepository());
+...
+----
+
+Cuando en NestJS necesitamos inyectar un provider no sólo como interfaz, sino inicializado con una clase, se tienen que hacer dos modificaciones en `app.module.ts`: 
+
+* Añadir la clase del provider al array `providers` (p.e. `CreateCourseUseCase`)
+* Añadir un JSON al array `providers` en el que se indique el parámetro a inicializar y clase con la que se inicializa.
+
+[source, typescript]
+----
+{
+    provide: CourseRepository, <1>
+    useClass: MySQLCourseRepository <2>
+}
+----
+<1> Parámetro a inicializar
+<2> Clase con la que se inicializa el parámetro
+
+El resultado final en `app.provider.ts` sería algo así
+
+[source, typescript]
+----
+@Module({
+  imports: [],
+  controllers: [AppController],
+  providers: [AppService, 
+    CreateCourseUseCase, <1>
+    {provide: CourseRepository, useClass: MySQLCourseRepository}], <2>
+})
+----
+<1> Parámetro a inicializar
+<2> Clase con la que se inicializa el parámetro
+****
+
++
+[NOTE]
+====
+Consulta la https://docs.nestjs.com/fundamentals/custom-providers#class-providers-useclass[documentación oficial de NestJS] para obtener más información sobre proveedores de clases (_class providers_).
+====
+
+### Sustitución del mecanismo de persistencia
+
+Una de las ventajas que aporta la descomposición que realiza DDD es el desacoplamiento de la infraestructura. En este apartado veremos como usar PostgreSQL como mecanismo de persistencia. Los cambios se limitan a:
+
+* Instalar PostgreSQL y su driver.
+* Crear un nuevo repositorio en la carpeta `Infrastructure` para PostgreSQL como mecanismo de persistencia. El nuevo repositorio implementará los métodos del repositorio abstracto (`save` y `nextIdentity`).
+* Sustituir el `provider` en `app.module.ts`.
+
+.Creación de un contenedor con PostgreSQL
+****
+Para facilitar la configuración de la base de datos, el script siguiente lanza un contenedor PostgreSQL y crea una base de datos tutorial con el password `example` (los mismos datos que se usaron para el ejemplo con MySQL)
+
+Archivo `start-postgres.sh`
+
+[source, bash]
+----
+#!/bin/bash
+set -e
+
+SERVER="postgres";
+PW="example";
+DB="enrollments";
+
+echo "echo stop & remove old docker [$SERVER] and starting new fresh instance of [$SERVER]"
+(docker kill $SERVER || :) && \
+  (docker rm $SERVER || :) && \
+  docker run --name $SERVER -e POSTGRES_PASSWORD=$PW \
+  -e PGPASSWORD=$PW \
+  -p 5432:5432 \
+  -d postgres
+
+# wait for pg to start
+echo "sleep wait for pg-server [$SERVER] to start";
+SLEEP 3;
+
+# create the db
+echo "CREATE DATABASE $DB ENCODING 'UTF-8';" | docker exec -i $SERVER psql -U postgres
+echo "\l" | docker exec -i $SERVER psql -U postgres
+----
+****
+
+Los paquetes de PostgreSQL se instalan con 
+
+`npm install pg --save`
+
+Script de inicialización de la base de datos
+
+++++
+<script src="https://gist.github.com/ualmtorres/8356e2554d9150c624327ad09739b8aa.js"></script>
+++++
+
+.Archivo `Infrastructure/PostgreSQLCourseRepository.ts`
+[source, typescript]
+----
+import { CourseRepository } from '../Domain/CourseRepository';
+import { Course } from '../Domain/Course';
+import { createConnection } from 'typeorm';
+
+export class PostgreSQLCourseRepository extends CourseRepository {
+
+    async nextIdentity():Promise<number> { <1>
+      const connection = await this.getConnection();
+
+      const result = await connection.query(
+        "SELECT nextval('courses_id');"
+      );
+
+      await connection.close();
+      return new Promise((resolve) => {
+        resolve(result[0].nextval);
+      });
+    }
+
+    async save(course: Course) { <2>
+        const connection = await this.getConnection();
+        const result = await connection.query(
+          'INSERT INTO courses(id, name, places) VALUES($1, $2, $3)',
+          [course.getId(), course.getName(), course.getPlaces()],
+        );
+
+        await connection.close();
+
+        return result;
+    }
+    getConnection() {
+        return createConnection({ <3>
+          type: 'postgres',
+          host: 'localhost',
+          port: 5432,
+          username: 'postgres',
+          password: 'example',
+          database: 'enrollments',
+        });
+      }
+}
+----
+<1> La generación de identificadores se hace a través de una secuencia de PostgreSQL.
+<2> Realiza un INSERT a partir del curso que se le pasa como parámetro. La forma de componer parámetros varía respecto a MySQL.
+<3> Configuración de los valores de conexión a la base de datos `enrollments`.
+
+.Devolución de promesas en lugar de valores primitivos
+****
+El método `nextIdentity()` del repositorio `PostgreSQLCourseRepository.ts` es un método asíncrono ya que tiene que realizar una operación con Postgres para que le devuelva el próximo valor de la secuencia. Esto se traduce en que el método debe devolver una promesa. Pero como este repositorio extiende la clase `CourseRepository`, el método abstracto `nextIdentity()` de dicha clase ahora deberá devolver una promesa, como se muestra a continuación.
+
+[source, typescript]
+----
+import { Course } from './Course';
+
+export abstract class CourseRepository {
+    abstract save(course: Course);
+    // Aquí irían otros métodos p.e courseByStudent
+
+    abstract nextIdentity(): Promise<number>; <1>
+}
+----
+<1> `nextIdentity()` ahora devuelve una promesa.
+
+Además, como `MySQLCourseRepository` también extendía `CourseRepository`, tendremos que cambiar también el método `nextIdentity()` en `MySQLCourseRepository` para que ahora devuelva una promesa. 
+
+[source, typescript]
+----
+...
+export class MySQLCourseRepository extends CourseRepository {
+
+    async nextIdentity(): Promise<number> { <1>
+      return new Promise((resolve) => { <2>
+        resolve(Math.floor(Date.now() / 1000));
+      });
+    }
+...
+----
+<1> `nextIdentity()` ahora devuelve una promesa.
+<2> Creación de la promesa para el valor devuelto.
+
+Por último, hay que cambiar en `app.module.ts` la implementación de `CourseRepository` que se va a usar, en este caso `PostgreSQLCourseRepository`.
+
+[source, typescript]
+----
+@Module({
+  imports: [],
+  controllers: [AppController],
+  providers: [AppService, 
+    CreateCourseUseCase,
+    {provide: CourseRepository, useClass: PostgreSQLCourseRepository}], <1>
+})
+export class AppModule {}
+----
+<1> Configuración de `CourseRepository` con `PostgreSQLCourseRepository`
+****
