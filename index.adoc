@@ -1177,3 +1177,195 @@ export class AppModule {}
 ----
 <1> Configuración de `CourseRepository` con `PostgreSQLCourseRepository`
 ****
+
+## Aplicación de las técnicas aprendidas al caso de uso de lectura
+
+A continuación refactorizaremos el caso de uso de listar cursos aplicando las técnicas de refactorización aprendidas en el apartado anterior.
+
+Antes de comenzar, veamos cuál es el punto de partida en `app.controller.ts`:
+
+[source, typescript]
+----
+  @Get('/courses')
+  @ApiTags('courses')
+  @ApiQuery({ name: 'name', required: false })
+  async getCourses(@Query('name') name: string): Promise<object> {
+    const connection = await this.getConnection();
+
+    let query = 'SELECT * FROM courses';
+    let params = [];
+
+    if (name !== undefined) {
+      query += ' WHERE name = ?';
+      params.push(name);
+    }
+
+    const result = await connection.query(query, params);
+
+    connection.close();
+
+    return result;
+  }
+----
+
+Los pasos a seguir serían:
+
+* Llevar la lógica de base de datos a `Infrasctructure/MySQLCourseRepository.ts`.
+* Crear el caso de uso para obtener la lista de cursos.
+* Añadir el caso de uso a la lista de `providers` en `app.module.ts`.
+* Llamar al caso de uso desde el controlador del endpoint en `app.controller.ts`.
+
+Veamos cada uno de ellos.
+
+### Llevar la lógica de base de datos al repositorio
+
+Añadiremos un método `all()` al repositorio. Esto implica añadirlo como método abstracto a `Infrasctructure/CourseRepository.ts` y en cada una de las implementaciones que tengamos de este repositorio (`Infrasctructure/MySQLCourseRepository.ts`, `Infrasctructure/PostgreSQLCourseRepository.ts`).
+
+.Nuevo método abstracto `all()` en `Infrasctructure/CourseRepository.ts`
+[source, typescript]
+----
+import { Course } from './Course';
+
+export abstract class CourseRepository {
+    abstract save(course: Course);
+    // Aquí irían otros métodos p.e courseByStudent
+
+    abstract nextIdentity(): Promise<number>;
+
+    abstract all(name: string): Promise<Course[]>; <1>
+}
+----
+<1> Método para recuperar la lista de cursos.
+
+.Implementación del método abstracto `all()` en `Infrastructure/MySQLCourseRepository.ts`
+[source, typescript]
+----
+...
+    async all(name: string): Promise<Course[]> { <1>
+      const connection = await this.getConnection();
+
+      let query = 'SELECT * FROM courses'; <2>
+      let params = [];
+  
+      if (name !== undefined) {
+        query += ' WHERE name = ?';
+        params.push(name);
+      }
+
+      const result = await connection.query(
+        query, params
+      );
+
+      connection.close();
+
+      return result;
+    }
+...
+----
+<1> Implementación del método para recuperar la lista de cursos
+<2> Código de interacción de la base de datos movido desde `app.controller.ts`
+
+.Implementación del método abstracto `all()` en `Infrasctructure/PostgreSQLCourseRepository.ts`
+[source, typescript]
+----
+...
+    async all(name: string): Promise<Course[]> { <1>
+      const connection = await this.getConnection();
+
+      let query = 'SELECT * FROM courses'; <2>
+      let params = [];
+  
+      if (name !== undefined) {
+        query += ' WHERE name = $1'; <3>
+        params.push(name);
+      }
+
+      const result = await connection.query(
+        query, params,
+      );
+
+      await connection.close();
+
+      return result;
+    }
+...
+----
+<1> Implementación del método para recuperar la lista de cursos.
+<2> Código de interacción de la base de datos movido desde `app.controller.ts`.
+<3> Adaptación del paso de parámetros para PostgreSQL.
+
+### Crear el caso de uso para mostrar la lista de cursos
+
+El caso de uso debe propocionar:
+
+* Un constructor donde inyectarle el repositorio a utilizar (`CourseRepository`).
+* Un método para ejecutar el caso de uso (p.e. `execute()`)
+
+.Archivo `Application/GetCoursesUseCase.ts`
+[source, typescript]
+----
+import { CourseRepository } from '../Domain/CourseRepository';
+import { Injectable } from '@nestjs/common';
+@Injectable()
+export class GetCoursesUseCase {
+
+    constructor(private courses: CourseRepository) { }
+
+    public async execute (name: string) {
+
+          const result = await this.courses.all(name); <1>
+
+          return { result };
+    }
+}
+----
+<1> Llamada al método del repositorio que implementa la funcionalidad del caso de uso.
+
+### Añadir el caso de uso a la lista de `providers` en `app.module.ts`
+
+Como el caso de uso tiene el decorador `Injectable()`, lo añadiremos a la lista de `providers` en `app.module.ts`.
+
+.Archivo `app.module.ts`
+[souce, typescript]
+----
+@Module({
+  imports: [],
+  controllers: [AppController],
+  providers: [AppService, 
+    CreateCourseUseCase,
+    {provide: CourseRepository, useClass: PostgreSQLCourseRepository},
+    GetCoursesUseCase], <1>
+})
+export class AppModule {}
+----
+<1> Caso de uso de listar cursos
+
+### Modificación del controlador del endpoint
+
+.Archivo `app.controller.ts`
+[source, typescript]
+----
+...
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService, 
+    private useCase: CreateCourseUseCase,
+    private getUseCase: GetCoursesUseCase) {} <1>
+    
+...
+
+  @Get('/courses')
+  @ApiTags('courses')
+  @ApiQuery({ name: 'name', required: false })
+  async getCourses(@Query('name') name: string): Promise<object> {
+    try {
+      const result = await this.getUseCase.execute(name); <2>
+      return result;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+...
+----
+<1> Inyección del caso de uso de listar cursos.
+<2> Llamada al caso de uso de listar cursos.
