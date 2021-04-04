@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 1.5.5.dev">
 <meta name="author" content="Servicio de las Tecnologías de la Información y las Comunicaciones - Universidad de Almería">
-<title>DDD</title>
+<title>DDD - Diseño dirigido por el dominio</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400,700">
 <style>
 /* Asciidoctor default stylesheet | MIT License | http://asciidoctor.org */
@@ -421,7 +421,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="book toc2 toc-right">
 <div id="header">
-<h1>DDD</h1>
+<h1>DDD - Diseño dirigido por el dominio</h1>
 <div class="details">
 <span id="author" class="author">Servicio de las Tecnologías de la Información y las Comunicaciones - Universidad de Almería</span><br>
 </div>
@@ -432,21 +432,28 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#trueintroducci-n">1. Introducción</a>
 <ul class="sectlevel2">
 <li><a href="#trueconfiguraci-n-inicial">1.1. Configuración inicial</a></li>
-<li><a href="#trueejemplo-a-desarrollar">1.2. Ejemplo a desarrollar</a></li>
-<li><a href="#truecrear-curso">1.3. Crear curso</a></li>
-<li><a href="#truelistar-cursos">1.4. Listar cursos</a></li>
-<li><a href="#trueregistrar-a-un-alumno">1.5. Registrar a un alumno</a></li>
-<li><a href="#truelistar-alumnos">1.6. Listar alumnos</a></li>
-<li><a href="#truematricular-a-un-alumno-en-un-curso">1.7. Matricular a un alumno en un curso</a></li>
-<li><a href="#trueestructura-de-archivos-objetivo">1.8. Estructura de archivos objetivo</a></li>
-<li><a href="#truecreaci-n-del-caso-de-uso">1.9. Creación del caso de uso</a></li>
-<li><a href="#trueusar-el-lenguaje-ub-cuo-dentro-del-caso-de-uso">1.10. Usar el lenguaje ubícuo dentro del caso de uso</a></li>
-<li><a href="#trueeliminar-las-referencias-http-del-caso-de-uso">1.11. Eliminar las referencias HTTP del caso de uso</a></li>
-<li><a href="#trueeliminar-las-referencias-a-persistencia-en-el-caso-de-uso">1.12. Eliminar las referencias a persistencia en el caso de uso</a></li>
-<li><a href="#trueempujar-la-l-gica-de-negocio-desde-el-caso-de-uso-al-dominio">1.13. Empujar la lógica de negocio desde el caso de uso al dominio</a></li>
-<li><a href="#truegeneraci-n-de-identificadores">1.14. Generación de identificadores</a></li>
-<li><a href="#truemejora-de-la-implementaci-n-del-repositorio-mysql">1.15. Mejora de la implementación del repositorio MySQL</a></li>
-<li><a href="#truesustituci-n-del-mecanismo-de-persistencia">1.16. Sustitución del mecanismo de persistencia</a></li>
+</ul>
+</li>
+<li><a href="#trueejemplo-a-desarrollar">2. Ejemplo a desarrollar</a>
+<ul class="sectlevel2">
+<li><a href="#truecrear-curso">2.1. Crear curso</a></li>
+<li><a href="#truelistar-cursos">2.2. Listar cursos</a></li>
+<li><a href="#trueregistrar-a-un-alumno">2.3. Registrar a un alumno</a></li>
+<li><a href="#truelistar-alumnos">2.4. Listar alumnos</a></li>
+<li><a href="#truematricular-a-un-alumno-en-un-curso">2.5. Matricular a un alumno en un curso</a></li>
+</ul>
+</li>
+<li><a href="#trueaplicaci-n-progresiva-de-las-t-cnicas-de-ddd">3. Aplicación progresiva de las técnicas de DDD</a>
+<ul class="sectlevel2">
+<li><a href="#trueestructura-de-archivos-objetivo">3.1. Estructura de archivos objetivo</a></li>
+<li><a href="#truecreaci-n-del-caso-de-uso">3.2. Creación del caso de uso</a></li>
+<li><a href="#trueusar-el-lenguaje-ub-cuo-dentro-del-caso-de-uso">3.3. Usar el lenguaje ubícuo dentro del caso de uso</a></li>
+<li><a href="#trueeliminar-las-referencias-http-del-caso-de-uso">3.4. Eliminar las referencias HTTP del caso de uso</a></li>
+<li><a href="#trueeliminar-las-referencias-a-persistencia-en-el-caso-de-uso">3.5. Eliminar las referencias a persistencia en el caso de uso</a></li>
+<li><a href="#trueempujar-la-l-gica-de-negocio-desde-el-caso-de-uso-al-dominio">3.6. Empujar la lógica de negocio desde el caso de uso al dominio</a></li>
+<li><a href="#truegeneraci-n-de-identificadores">3.7. Generación de identificadores</a></li>
+<li><a href="#truemejora-de-la-implementaci-n-del-repositorio-mysql">3.8. Mejora de la implementación del repositorio MySQL</a></li>
+<li><a href="#truesustituci-n-del-mecanismo-de-persistencia">3.9. Sustitución del mecanismo de persistencia</a></li>
 </ul>
 </li>
 </ul>
@@ -514,8 +521,11 @@ $ npm install --save @nestjs/swagger swagger-ui-express</code></pre>
 </div>
 <script src="https://gist.github.com/ualmtorres/dd1688d817f74c1911fce54424535633.js"></script>
 </div>
-<div class="sect2">
-<h3 id="trueejemplo-a-desarrollar"><a class="anchor" href="#trueejemplo-a-desarrollar"></a>1.2. Ejemplo a desarrollar</h3>
+</div>
+</div>
+<div class="sect1">
+<h2 id="trueejemplo-a-desarrollar"><a class="anchor" href="#trueejemplo-a-desarrollar"></a>2. Ejemplo a desarrollar</h2>
+<div class="sectionbody">
 <div class="paragraph">
 <p>CASO DE USO 1: Crear un curso</p>
 </div>
@@ -610,9 +620,8 @@ async function bootstrap() {
 bootstrap();</code></pre>
 </div>
 </div>
-</div>
 <div class="sect2">
-<h3 id="truecrear-curso"><a class="anchor" href="#truecrear-curso"></a>1.3. Crear curso</h3>
+<h3 id="truecrear-curso"><a class="anchor" href="#truecrear-curso"></a>2.1. Crear curso</h3>
 <div class="listingblock">
 <div class="title">Archivo <code>app.controller.ts</code></div>
 <div class="content">
@@ -708,7 +717,7 @@ export class AppController {
 </div>
 </div>
 <div class="sect2">
-<h3 id="truelistar-cursos"><a class="anchor" href="#truelistar-cursos"></a>1.4. Listar cursos</h3>
+<h3 id="truelistar-cursos"><a class="anchor" href="#truelistar-cursos"></a>2.2. Listar cursos</h3>
 <div class="listingblock">
 <div class="title">Modificaciones al archivo <code>app.controller.ts</code>.</div>
 <div class="content">
@@ -738,7 +747,7 @@ export class AppController {
 </div>
 </div>
 <div class="sect2">
-<h3 id="trueregistrar-a-un-alumno"><a class="anchor" href="#trueregistrar-a-un-alumno"></a>1.5. Registrar a un alumno</h3>
+<h3 id="trueregistrar-a-un-alumno"><a class="anchor" href="#trueregistrar-a-un-alumno"></a>2.3. Registrar a un alumno</h3>
 <div class="listingblock">
 <div class="title">Modificaciones al archivo <code>app.controller.ts</code></div>
 <div class="content">
@@ -790,7 +799,7 @@ class CreateStudentRequest { <i class="conum" data-value="1"></i><b>(1)</b>
 </div>
 </div>
 <div class="sect2">
-<h3 id="truelistar-alumnos"><a class="anchor" href="#truelistar-alumnos"></a>1.6. Listar alumnos</h3>
+<h3 id="truelistar-alumnos"><a class="anchor" href="#truelistar-alumnos"></a>2.4. Listar alumnos</h3>
 <div class="listingblock">
 <div class="title">Modificaciones al archivo <code>app.controller.ts</code></div>
 <div class="content">
@@ -814,7 +823,7 @@ class CreateStudentRequest { <i class="conum" data-value="1"></i><b>(1)</b>
 </div>
 </div>
 <div class="sect2">
-<h3 id="truematricular-a-un-alumno-en-un-curso"><a class="anchor" href="#truematricular-a-un-alumno-en-un-curso"></a>1.7. Matricular a un alumno en un curso</h3>
+<h3 id="truematricular-a-un-alumno-en-un-curso"><a class="anchor" href="#truematricular-a-un-alumno-en-un-curso"></a>2.5. Matricular a un alumno en un curso</h3>
 <div class="listingblock">
 <div class="title">Modificaciones al archivo <code>app.controller.ts</code></div>
 <div class="content">
@@ -877,8 +886,13 @@ class EnrollStudentRequest { <i class="conum" data-value="1"></i><b>(1)</b>
 </div>
 </div>
 </div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="trueaplicaci-n-progresiva-de-las-t-cnicas-de-ddd"><a class="anchor" href="#trueaplicaci-n-progresiva-de-las-t-cnicas-de-ddd"></a>3. Aplicación progresiva de las técnicas de DDD</h2>
+<div class="sectionbody">
 <div class="sect2">
-<h3 id="trueestructura-de-archivos-objetivo"><a class="anchor" href="#trueestructura-de-archivos-objetivo"></a>1.8. Estructura de archivos objetivo</h3>
+<h3 id="trueestructura-de-archivos-objetivo"><a class="anchor" href="#trueestructura-de-archivos-objetivo"></a>3.1. Estructura de archivos objetivo</h3>
 <div class="imageblock">
 <div class="content">
 <img src="http://localhost:60332/afx/cache/f570f81cf83fe2c800deadaf10ff54bc.png" alt="f570f81cf83fe2c800deadaf10ff54bc.png">
@@ -886,7 +900,7 @@ class EnrollStudentRequest { <i class="conum" data-value="1"></i><b>(1)</b>
 </div>
 </div>
 <div class="sect2">
-<h3 id="truecreaci-n-del-caso-de-uso"><a class="anchor" href="#truecreaci-n-del-caso-de-uso"></a>1.9. Creación del caso de uso</h3>
+<h3 id="truecreaci-n-del-caso-de-uso"><a class="anchor" href="#truecreaci-n-del-caso-de-uso"></a>3.2. Creación del caso de uso</h3>
 <div class="paragraph">
 <p>El objetivo es llevar toda la lógica que teníamos en el método de creación de un curso nuevo definido en <code>app.controller.ts</code> a un nuevo archivo <code>Application/CreateCourseUseCase.ts</code>.</p>
 </div>
@@ -999,7 +1013,7 @@ export class CreateCourseUseCase { <i class="conum" data-value="1"></i><b>(1)</b
 </div>
 </div>
 <div class="sect2">
-<h3 id="trueusar-el-lenguaje-ub-cuo-dentro-del-caso-de-uso"><a class="anchor" href="#trueusar-el-lenguaje-ub-cuo-dentro-del-caso-de-uso"></a>1.10. Usar el lenguaje ubícuo dentro del caso de uso</h3>
+<h3 id="trueusar-el-lenguaje-ub-cuo-dentro-del-caso-de-uso"><a class="anchor" href="#trueusar-el-lenguaje-ub-cuo-dentro-del-caso-de-uso"></a>3.3. Usar el lenguaje ubícuo dentro del caso de uso</h3>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
@@ -1053,7 +1067,7 @@ export class CreateCourseUseCase { <i class="conum" data-value="1"></i><b>(1)</b
 </div>
 </div>
 <div class="sect2">
-<h3 id="trueeliminar-las-referencias-http-del-caso-de-uso"><a class="anchor" href="#trueeliminar-las-referencias-http-del-caso-de-uso"></a>1.11. Eliminar las referencias HTTP del caso de uso</h3>
+<h3 id="trueeliminar-las-referencias-http-del-caso-de-uso"><a class="anchor" href="#trueeliminar-las-referencias-http-del-caso-de-uso"></a>3.4. Eliminar las referencias HTTP del caso de uso</h3>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
@@ -1139,7 +1153,7 @@ export class CreateCourseUseCase { <i class="conum" data-value="1"></i><b>(1)</b
 </div>
 </div>
 <div class="sect2">
-<h3 id="trueeliminar-las-referencias-a-persistencia-en-el-caso-de-uso"><a class="anchor" href="#trueeliminar-las-referencias-a-persistencia-en-el-caso-de-uso"></a>1.12. Eliminar las referencias a persistencia en el caso de uso</h3>
+<h3 id="trueeliminar-las-referencias-a-persistencia-en-el-caso-de-uso"><a class="anchor" href="#trueeliminar-las-referencias-a-persistencia-en-el-caso-de-uso"></a>3.5. Eliminar las referencias a persistencia en el caso de uso</h3>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
@@ -1295,7 +1309,7 @@ export class CreateCourseUseCase {
 </div>
 </div>
 <div class="sect2">
-<h3 id="trueempujar-la-l-gica-de-negocio-desde-el-caso-de-uso-al-dominio"><a class="anchor" href="#trueempujar-la-l-gica-de-negocio-desde-el-caso-de-uso-al-dominio"></a>1.13. Empujar la lógica de negocio desde el caso de uso al dominio</h3>
+<h3 id="trueempujar-la-l-gica-de-negocio-desde-el-caso-de-uso-al-dominio"><a class="anchor" href="#trueempujar-la-l-gica-de-negocio-desde-el-caso-de-uso-al-dominio"></a>3.6. Empujar la lógica de negocio desde el caso de uso al dominio</h3>
 <div class="paragraph">
 <p>Se trata de llevar la verificación del número de caracteres de un curso y su número de plazas desde <code>Application/CreateCourseUseCase.ts</code> a <code>Domain/Course.ts</code>. El objetivo es que otros casos de uso se puedan beneficiar de esa lógica si está en la entidad y así no tener que volver a implementarla. Concretamente, la llevaríamos al constructor.</p>
 </div>
@@ -1366,7 +1380,7 @@ export class CreateCourseUseCase {
 </div>
 </div>
 <div class="sect2">
-<h3 id="truegeneraci-n-de-identificadores"><a class="anchor" href="#truegeneraci-n-de-identificadores"></a>1.14. Generación de identificadores</h3>
+<h3 id="truegeneraci-n-de-identificadores"><a class="anchor" href="#truegeneraci-n-de-identificadores"></a>3.7. Generación de identificadores</h3>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
@@ -1537,7 +1551,7 @@ export class MySQLCourseRepository extends CourseRepository {
 </div>
 </div>
 <div class="sect2">
-<h3 id="truemejora-de-la-implementaci-n-del-repositorio-mysql"><a class="anchor" href="#truemejora-de-la-implementaci-n-del-repositorio-mysql"></a>1.15. Mejora de la implementación del repositorio MySQL</h3>
+<h3 id="truemejora-de-la-implementaci-n-del-repositorio-mysql"><a class="anchor" href="#truemejora-de-la-implementaci-n-del-repositorio-mysql"></a>3.8. Mejora de la implementación del repositorio MySQL</h3>
 <div class="paragraph">
 <p>Con lo que tenemos hasta ahora, se crea una conexión en cada uso y es que el repositorio no se comparte entre peticiones. Se trata de un problema relacionado con la gestión del ciclo de vida de las conexiones y del repositorio y esto se resuelve con un <em>contenedor de inyección de dependencias</em>.</p>
 </div>
@@ -1777,7 +1791,7 @@ const useCase = new CreateCourseUseCase(new MySQLCourseRepository());
 </div>
 </div>
 <div class="sect2">
-<h3 id="truesustituci-n-del-mecanismo-de-persistencia"><a class="anchor" href="#truesustituci-n-del-mecanismo-de-persistencia"></a>1.16. Sustitución del mecanismo de persistencia</h3>
+<h3 id="truesustituci-n-del-mecanismo-de-persistencia"><a class="anchor" href="#truesustituci-n-del-mecanismo-de-persistencia"></a>3.9. Sustitución del mecanismo de persistencia</h3>
 <div class="paragraph">
 <p>Una de las ventajas que aporta la descomposición que realiza DDD es el desacoplamiento de la infraestructura. En este apartado veremos como usar PostgreSQL como mecanismo de persistencia. Los cambios se limitan a:</p>
 </div>
@@ -1988,7 +2002,7 @@ export class AppModule {}</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2021-04-04 12:27:21 CEST
+Last updated 2021-04-04 12:51:19 CEST
 </div>
 </div>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.9.1/styles/github.min.css">
